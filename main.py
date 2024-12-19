@@ -11,16 +11,30 @@ DEFAULT_SYSTEM_PROMPT = """당신은 유용한 AI 어시스턴트입니다.
 사용자의 질문에 정확하고 도움이 되는 답변을 제공합니다.
 부적절하거나 유해한 내용은 답변하지 않습니다."""
 
+# 사용 가능한 모델 목록
+MODELS = {
+    "Gemini 1.5 Flash": "gemini-1.5-flash",
+    "Gemini 1.5 Pro": "gemini-1.5-pro"
+}
+
 def load_config():
     """설정 파일 로드"""
     if CONFIG_PATH.exists():
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {"api_key": "", "system_prompt": DEFAULT_SYSTEM_PROMPT}
+    return {
+        "api_key": "",
+        "system_prompt": DEFAULT_SYSTEM_PROMPT,
+        "selected_model": "gemini-1.5-flash"
+    }
 
-def save_config(api_key, system_prompt):
+def save_config(api_key, system_prompt, selected_model):
     """설정 파일 저장"""
-    config = {"api_key": api_key, "system_prompt": system_prompt}
+    config = {
+        "api_key": api_key,
+        "system_prompt": system_prompt,
+        "selected_model": selected_model
+    }
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
 
@@ -55,6 +69,14 @@ if st.session_state.page == "settings":
         help="Google AI Studio에서 발급받은 API 키를 입력하세요"
     )
     
+    # 모델 선택
+    selected_model = st.selectbox(
+        "사용할 모델",
+        options=list(MODELS.keys()),
+        index=list(MODELS.values()).index(config["selected_model"]),
+        help="Flash: 빠른 응답, Pro: 고성능"
+    )
+    
     # 시스템 프롬프트 입력
     system_prompt = st.text_area(
         "시스템 프롬프트",
@@ -65,7 +87,7 @@ if st.session_state.page == "settings":
     
     # 저장 버튼
     if st.button("설정 저장"):
-        save_config(api_key, system_prompt)
+        save_config(api_key, system_prompt, MODELS[selected_model])
         st.success("설정이 저장되었습니다!")
         
 # 채팅 페이지
@@ -81,9 +103,12 @@ elif st.session_state.page == "chat":
     else:
         # Gemini 설정
         genai.configure(api_key=config["api_key"])
-        model = genai.GenerativeModel("gemini-1.5-pro")
+        model = genai.GenerativeModel(config["selected_model"])
         
         st.title("Gemini 챗봇")
+        
+        # 현재 사용 중인 모델 표시
+        st.info(f"현재 모델: {[k for k, v in MODELS.items() if v == config['selected_model']][0]}")
         
         # 사이드바에 파일 업로드
         with st.sidebar:
@@ -100,11 +125,6 @@ elif st.session_state.page == "chat":
         # 채팅 히스토리 초기화
         if "messages" not in st.session_state:
             st.session_state.messages = []
-            # 시스템 프롬프트 추가
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": "안녕하세요! 무엇을 도와드릴까요?"
-            })
         
         # 채팅 히스토리 표시
         for message in st.session_state.messages:
@@ -113,23 +133,31 @@ elif st.session_state.page == "chat":
         
         # 사용자 입력 처리
         if prompt := st.chat_input("메시지를 입력하세요"):
+            # 사용자 메시지 표시 및 저장
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.write(prompt)
             
             try:
-                # 이미지가 있는 경우와 없는 경우 분리
+                # 시스템 프롬프트 포함하여 메시지 생성
+                messages = [{
+                    "parts": [config["system_prompt"]],
+                    "role": "user"
+                }]
+                
+                # 이전 대화 기록 추가
+                for msg in st.session_state.messages:
+                    messages.append({
+                        "parts": [msg["content"]],
+                        "role": "model" if msg["role"] == "assistant" else "user"
+                    })
+                
+                # 이미지가 있는 경우
                 if uploaded_file:
-                    response = model.generate_content([
-                        config["system_prompt"],
-                        {"role": "user", "content": prompt},
-                        image
-                    ])
+                    response = model.generate_content([prompt, image])
                 else:
-                    response = model.generate_content([
-                        config["system_prompt"],
-                        {"role": "user", "content": prompt}
-                    ])
+                    chat = model.start_chat(history=messages)
+                    response = chat.send_message(prompt)
                 
                 # 응답 표시 및 저장
                 st.session_state.messages.append({
