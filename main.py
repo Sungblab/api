@@ -11,7 +11,7 @@ def init_settings():
     if 'system_prompt' not in st.session_state:
         st.session_state['system_prompt'] = '당신은 친절한 챗봇입니다.'
     if 'selected_model' not in st.session_state:
-        st.session_state['selected_model'] = 'gemini-pro' # gemini-pro-vision 으로 변경가능
+        st.session_state['selected_model'] = 'gemini-pro'
 
 # Gemini API 초기화
 def init_gemini():
@@ -50,10 +50,10 @@ def chatbot_page():
 
     # 모델 선택
     model = genai.GenerativeModel(st.session_state['selected_model'])
-    chat = model.start_chat(history=[]) # 이전 대화 기록을 위해 history 사용
+    chat = model.start_chat(history=[])
     if 'chat_history' not in st.session_state:
-        st.session_state['chat_history'] = [] # 이전 대화 기록 초기화
-
+      st.session_state['chat_history'] = []
+    
     # 파일 업로드
     uploaded_files = st.file_uploader("이미지 또는 PDF 파일을 업로드하세요.", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True)
 
@@ -74,26 +74,26 @@ def chatbot_page():
             contents.append(user_input)
             
             try:
-                with st.spinner("답변 생성 중..."): # 로딩 표시
+                with st.spinner("답변 생성 중..."):
                     response = chat.send_message(contents)
                 st.session_state['chat_history'].extend(chat.history) # 대화 기록 저장
-                st.write(response.text)
             except Exception as e:
                 st.error(f"오류 발생: {e}")
-        else:
-            st.warning("질문을 입력해주세요.")
-    
+            
+    st.subheader("대화 기록")
     if 'chat_history' in st.session_state and st.session_state['chat_history']:
-        st.subheader("대화 기록")
-        for item in st.session_state['chat_history']:
-          if 'parts' in item:
-            for part in item['parts']:
-                if hasattr(part, 'text'):
-                  st.write(f"사용자: {part.text}")
-                elif hasattr(part, 'data'):
-                  st.write(f"파일")
-          elif 'text' in item:
-              st.write(f"봇: {item['text']}")
+      for item in st.session_state['chat_history']:
+        if 'parts' in item:
+          for part in item['parts']:
+            if hasattr(part, 'text'):
+              with st.chat_message("user"):
+                st.write(part.text)
+            elif hasattr(part, 'data'):
+              with st.chat_message("user"):
+                st.write("파일")
+        elif 'text' in item:
+          with st.chat_message("assistant"):
+            st.write(item['text'])
 
 
 # 메인 함수
