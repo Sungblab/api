@@ -19,14 +19,22 @@ MODELS = {
 
 def load_config():
     """설정 파일 로드"""
-    if CONFIG_PATH.exists():
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {
+    default_config = {
         "api_key": "",
         "system_prompt": DEFAULT_SYSTEM_PROMPT,
         "selected_model": "gemini-1.5-flash"
     }
+    
+    if CONFIG_PATH.exists():
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                saved_config = json.load(f)
+                # 기존 설정에 새로운 기본값 병합
+                return {**default_config, **saved_config}
+        except Exception as e:
+            print(f"설정 파일 로드 중 오류 발생: {e}")
+            return default_config
+    return default_config
 
 def save_config(api_key, system_prompt, selected_model):
     """설정 파일 저장"""
@@ -70,10 +78,17 @@ if st.session_state.page == "settings":
     )
     
     # 모델 선택
+    # 현재 선택된 모델의 인덱스 찾기
+    current_model = config.get("selected_model", "gemini-1.5-flash")
+    try:
+        current_index = list(MODELS.values()).index(current_model)
+    except ValueError:
+        current_index = 0
+    
     selected_model = st.selectbox(
         "사용할 모델",
         options=list(MODELS.keys()),
-        index=list(MODELS.values()).index(config["selected_model"]),
+        index=current_index,
         help="Flash: 빠른 응답, Pro: 고성능"
     )
     
